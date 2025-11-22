@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Hiring Cafe Network Capture</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 12px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 12px;
+      }
+      button {
+        margin-right: 8px;
+        padding: 8px 12px;
+        border: none;
+        background: #2563eb;
+        color: #f8fafc;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #334155;
+        cursor: not-allowed;
+      }
+      #status {
+        margin-top: 10px;
+        font-size: 13px;
+      }
+      #log {
+        margin-top: 12px;
+        padding: 8px;
+        background: #1e293b;
+        border-radius: 4px;
+        height: 240px;
+        overflow: auto;
+        font-family: monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hiring Cafe Network Capture</h1>
+    <div>
+      <button id="open-site">Open hiring.cafe</button>
+      <button id="save" disabled>Save .Net responses</button>
+      <button id="clear">Clear log</button>
+    </div>
+    <div id="status">Waiting for network traffic...</div>
+    <div id="log"></div>
+    <script src="panel.js"></script>
+  </body>
+</html>

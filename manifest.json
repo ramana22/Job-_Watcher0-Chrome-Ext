@@ -1,0 +1,15 @@
+{
+  "name": "Hiring Cafe Watcher",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "description": "Opens hiring.cafe, captures network responses for .Net developer searches, and saves them to a file.",
+  "permissions": ["downloads", "tabs", "scripting"],
+  "host_permissions": ["https://hiring.cafe/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "devtools_page": "devtools.html",
+  "action": {
+    "default_title": "Hiring Cafe Watcher"
+  }
+}
