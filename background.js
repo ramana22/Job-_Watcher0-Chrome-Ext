@@ -282,11 +282,21 @@ async function runJobSearch() {
     const jobs = await fetchJobsInRealBrowser(config);
     await sendEmail(config, jobs);
     saveJobsToFiles(config.keyword, jobs);
+
+    const summary = {
+      jobsCount: jobs.length,
+      mailTo: config.mailTo,
+      keyword: config.keyword,
+    };
+
     console.info(
-      `[Hiring Cafe Watcher] Sent ${jobs.length} results for "${config.keyword}" to ${config.mailTo || "<no-email-set>"}.`
+      `[Hiring Cafe Watcher] Sent ${summary.jobsCount} results for "${summary.keyword}" to ${summary.mailTo || "<no-email-set>"}.`
     );
+
+    return summary;
   } catch (error) {
     console.error("[Hiring Cafe Watcher]", error);
+    throw error;
   }
 }
 
@@ -337,7 +347,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message?.type === "runJobSearchNow") {
     runJobSearch()
-      .then(() => sendResponse({ success: true }))
+      .then((summary) =>
+        sendResponse({ success: true, summary })
+      )
       .catch((error) => sendResponse({ success: false, error: error?.message }));
     return true;
   }

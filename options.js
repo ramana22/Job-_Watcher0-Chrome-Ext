@@ -83,7 +83,12 @@ function runNow() {
   showStatus("Running search now...");
   chrome.runtime.sendMessage({ type: "runJobSearchNow" }, (response) => {
     if (response?.success) {
-      showStatus("Search executed. Check your inbox for the email.");
+      const summary = response.summary;
+      const count = summary?.jobsCount ?? "";
+      const mailTo = summary?.mailTo || form.mailTo.value || "your inbox";
+      showStatus(
+        `Search executed. ${count !== "" ? `${count} results` : "Results"} emailed to ${mailTo}. Downloads saved in Chrome Downloads.`
+      );
     } else {
       showStatus(response?.error || "Unable to run the search.", true);
     }

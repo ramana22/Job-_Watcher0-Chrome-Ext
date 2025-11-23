@@ -7,6 +7,7 @@ A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watc
 - Captures Network requests made to the site while you interact with it.
 - Filters responses containing ".Net developer" (case-insensitive) and downloads them as a text file.
 - Posts to `https://hiring.cafe/api/search-jobs` from an actual hiring.cafe tab opened by the extension (using your configured keyword + seniority filters), emails the results over SMTP, and downloads text/JSON files for each run.
+ - Posts to `https://hiring.cafe/api/search-jobs` from an actual hiring.cafe tab opened by the extension (using your configured keyword + seniority filters), emails the results over SMTP, and downloads text/JSON files for each run. The options page shows whether the run emailed results and to whom.
 - Automatically retries the API call with a short backoff if hiring.cafe responds with "Too many requests" (HTTP 429), respecting any `Retry-After` header when present.
 - Opens a real hiring.cafe tab with the matching searchState before posting to the API so the request is indistinguishable from browser traffic, then retries if a `403 Forbidden` response is returned.
 
