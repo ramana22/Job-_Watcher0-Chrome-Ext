@@ -362,6 +362,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "saveJson") {
+    const filename = message.filename || "hiring-cafe/search-jobs.json";
+    const content = message.content || "{}";
+    const url = `data:application/json;charset=utf-8,${encodeURIComponent(content)}`;
+
+    chrome.downloads.download({ url, filename }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse({ success: true, downloadId });
+      }
+    });
+    return true;
+  }
+
   if (message?.type === "runJobSearchNow") {
     runJobSearch()
       .then((summary) =>

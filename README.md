@@ -6,6 +6,7 @@ A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watc
 - Opens hiring.cafe in a new tab from the DevTools panel.
 - Captures Network requests made to the site while you interact with it.
 - Filters responses containing ".Net developer" (case-insensitive) and downloads them as a text file.
+- Adds a **Save search JSON** button in DevTools to grab every captured `POST https://hiring.cafe/api/search-jobs` response and download the raw JSON payloads.
 - Posts to `https://hiring.cafe/api/search-jobs` from an actual hiring.cafe tab opened by the extension (using your configured keyword + seniority filters), emails the results over SMTP, and downloads text/JSON files for each run.
  - Posts to `https://hiring.cafe/api/search-jobs` from an actual hiring.cafe tab opened by the extension (using your configured keyword + seniority filters), emails the results over SMTP, and downloads text/JSON files for each run. The options page shows whether the run emailed results and to whom.
 - Automatically retries the API call with a short backoff if hiring.cafe responds with "Too many requests" (HTTP 429), respecting any `Retry-After` header when present.
@@ -36,6 +37,7 @@ A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watc
    - Click **Open hiring.cafe** if you need a fresh tab.
    - Perform a search for **.Net developer** on the site so the Network tab records the requests.
    - Watch the log for hiring.cafe requests; when ready, click **Save .Net responses** to download a `net-developer-responses.txt` file with matching request and response bodies.
+   - To capture the exact `POST https://hiring.cafe/api/search-jobs` payload and response from the Network tab, click **Save search JSON**; a timestamped JSON file with the captured request/response pairs will be downloaded.
 4. Clear captured requests anytime with **Clear log**.
 
 > The DevTools panel listens only while DevTools stays open. Keep the panel open during your search to ensure responses are captured.

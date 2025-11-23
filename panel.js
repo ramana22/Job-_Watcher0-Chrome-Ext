@@ -1,6 +1,7 @@
 const logEl = document.getElementById("log");
 const statusEl = document.getElementById("status");
 const saveButton = document.getElementById("save");
+const saveJsonButton = document.getElementById("save-json");
 
 const capturedEntries = [];
 
@@ -44,6 +45,59 @@ function saveMatches() {
   );
 }
 
+function saveSearchJson() {
+  const searchEntries = capturedEntries.filter(
+    (entry) =>
+      entry.method === "POST" &&
+      entry.url.includes("/api/search-jobs") &&
+      (entry.responseBody || "").trim()
+  );
+
+  if (!searchEntries.length) {
+    appendLog("No POST https://hiring.cafe/api/search-jobs responses captured yet.");
+    return;
+  }
+
+  const records = searchEntries.map((entry) => {
+    let parsedRequest = entry.requestBody;
+    let parsedResponse = entry.responseBody;
+
+    try {
+      parsedRequest = entry.requestBody ? JSON.parse(entry.requestBody) : entry.requestBody;
+    } catch (_) {
+      parsedRequest = entry.requestBody;
+    }
+
+    try {
+      parsedResponse = entry.responseBody ? JSON.parse(entry.responseBody) : entry.responseBody;
+    } catch (_) {
+      parsedResponse = entry.responseBody;
+    }
+
+    return {
+      url: entry.url,
+      status: entry.status,
+      method: entry.method,
+      request: parsedRequest,
+      response: parsedResponse,
+    };
+  });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `hiring-cafe/search-jobs-${timestamp}.json`;
+
+  chrome.runtime.sendMessage(
+    { type: "saveJson", content: JSON.stringify(records, null, 2), filename },
+    (response) => {
+      if (response?.success) {
+        appendLog(`Saved ${searchEntries.length} search-jobs responses to ${filename}.`);
+      } else {
+        appendLog(`Failed to save search responses: ${response?.error || "unknown error"}`);
+      }
+    }
+  );
+}
+
 function wireNetworkListener() {
   chrome.devtools.network.onRequestFinished.addListener((request) => {
     if (!request.request.url.includes("hiring.cafe")) return;
@@ -59,7 +113,12 @@ function wireNetworkListener() {
       });
 
       appendLog(`${request.request.method} ${request.request.url} (status ${request.response?.status})`);
-      saveButton.disabled = capturedEntries.length === 0;
+      const hasCaptured = capturedEntries.length > 0;
+      const hasSearchResponse = capturedEntries.some(
+        (entry) => entry.method === "POST" && entry.url.includes("/api/search-jobs")
+      );
+      saveButton.disabled = !hasCaptured;
+      saveJsonButton.disabled = !hasSearchResponse;
       updateStatus(`${capturedEntries.length} requests captured for hiring.cafe.`);
     });
   });
@@ -76,11 +135,13 @@ document.getElementById("open-site").addEventListener("click", () => {
 });
 
 saveButton.addEventListener("click", saveMatches);
+saveJsonButton.addEventListener("click", saveSearchJson);
 
 document.getElementById("clear").addEventListener("click", () => {
   capturedEntries.length = 0;
   logEl.textContent = "";
   saveButton.disabled = true;
+  saveJsonButton.disabled = true;
   updateStatus("Waiting for network traffic...");
   appendLog("Cleared captured requests.");
 });
