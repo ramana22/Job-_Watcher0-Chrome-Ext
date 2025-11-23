@@ -5,17 +5,25 @@ const MIN_INTERVAL_MINUTES = 15;
 
 const DEFAULT_CONFIG = {
   keyword: ".Net developer",
-  email: "",
-  webhookUrl: "",
   intervalMinutes: 120,
+  smtpHost: "smtp.gmail.com",
+  smtpPort: 587,
+  smtpUser: "ramanagajula1999@gmail.com",
+  smtpPass: "jsrkmzzimefqnljt",
+  mailFrom: "ramanagajula1999@gmail.com",
+  mailTo: "ramanagajula001@gmail.com",
 };
 
 function ensureConfigShape(config) {
   return {
     keyword: config.keyword || DEFAULT_CONFIG.keyword,
-    email: config.email || DEFAULT_CONFIG.email,
-    webhookUrl: config.webhookUrl || DEFAULT_CONFIG.webhookUrl,
     intervalMinutes: Number(config.intervalMinutes) || DEFAULT_CONFIG.intervalMinutes,
+    smtpHost: config.smtpHost || DEFAULT_CONFIG.smtpHost,
+    smtpPort: Number(config.smtpPort) || DEFAULT_CONFIG.smtpPort,
+    smtpUser: config.smtpUser || DEFAULT_CONFIG.smtpUser,
+    smtpPass: config.smtpPass || DEFAULT_CONFIG.smtpPass,
+    mailFrom: config.mailFrom || config.smtpUser || DEFAULT_CONFIG.mailFrom,
+    mailTo: config.mailTo || config.email || DEFAULT_CONFIG.mailTo,
   };
 }
 
@@ -67,35 +75,56 @@ function formatJobs(keyword, jobs) {
       .join("\n");
   });
 
-  return `Hiring.cafe search results for "${keyword}" as of ${new Date().toISOString()}\n\n${lines.join(
-    "\n\n----------------------------------------\n\n"
-  )}`;
+  const divider = "\n\n----------------------------------------\n\n";
+  return `Hiring.cafe search results for "${keyword}" as of ${new Date().toISOString()}\n\n${lines.join(divider)}`;
 }
 
 async function sendEmail(config, jobs) {
-  if (!config.webhookUrl) {
-    throw new Error("No webhook URL configured for email delivery.");
-  }
-  if (!config.email) {
-    throw new Error("No recipient email configured.");
+  if (!config.smtpHost || !config.smtpUser || !config.smtpPass || !config.mailTo) {
+    throw new Error("SMTP host, credentials, and recipient email are required.");
   }
 
   const payload = {
-    to: config.email,
-    subject: `Hiring.cafe results for ${config.keyword}`,
-    body: formatJobs(config.keyword, jobs),
+    Host: config.smtpHost,
+    Username: config.smtpUser,
+    Password: config.smtpPass,
+    To: config.mailTo,
+    From: config.mailFrom || config.smtpUser,
+    Subject: `Hiring.cafe results for ${config.keyword}`,
+    Body: formatJobs(config.keyword, jobs).replace(/\n/g, "<br>"),
+    Port: Number(config.smtpPort) || DEFAULT_CONFIG.smtpPort,
   };
 
-  const response = await fetch(config.webhookUrl, {
+  const response = await fetch("https://smtpjs.com/v3/smtpjs.aspx?", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Email webhook failed with status ${response.status}: ${text}`);
+  const text = await response.text();
+  if (!response.ok || text.toLowerCase().includes("error")) {
+    throw new Error(`SMTP send failed (${response.status}): ${text}`);
   }
+}
+
+function downloadFile(filename, content, mimeType = "text/plain") {
+  const url = `data:${mimeType};charset=utf-8,${encodeURIComponent(content)}`;
+  chrome.downloads.download({ url, filename }, (downloadId) => {
+    if (chrome.runtime.lastError) {
+      console.error(`[Hiring Cafe Watcher] Download failed for ${filename}:`, chrome.runtime.lastError.message);
+    } else {
+      console.info(`[Hiring Cafe Watcher] Saved ${filename} (download ${downloadId}).`);
+    }
+  });
+}
+
+function saveJobsToFiles(keyword, jobs) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const summary = formatJobs(keyword, jobs);
+  const baseName = `hiring-cafe/${encodeURIComponent(keyword)}`;
+
+  downloadFile(`${baseName}-${timestamp}.txt`, summary, "text/plain");
+  downloadFile(`${baseName}-${timestamp}.json`, JSON.stringify(jobs, null, 2), "application/json");
 }
 
 async function runJobSearch() {
@@ -103,8 +132,9 @@ async function runJobSearch() {
   try {
     const jobs = await fetchJobs(config.keyword);
     await sendEmail(config, jobs);
+    saveJobsToFiles(config.keyword, jobs);
     console.info(
-      `[Hiring Cafe Watcher] Sent ${jobs.length} results for "${config.keyword}" to ${config.email || "<no-email-set>"}.`
+      `[Hiring Cafe Watcher] Sent ${jobs.length} results for "${config.keyword}" to ${config.mailTo || "<no-email-set>"}.`
     );
   } catch (error) {
     console.error("[Hiring Cafe Watcher]", error);

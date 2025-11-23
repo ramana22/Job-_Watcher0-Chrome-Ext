@@ -1,24 +1,24 @@
 # Hiring Cafe Watcher
 
-A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watches the Network tab, and saves responses that mention ".Net developer". It also includes a scheduled job runner that queries the public search API and emails the results at a configurable interval.
+A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watches the Network tab, and saves responses that mention ".Net developer". It also includes a scheduled job runner that queries the public search API, emails the results via SMTP, and downloads both text and JSON snapshots on each run.
 
 ## Features
 - Opens hiring.cafe in a new tab from the DevTools panel.
 - Captures Network requests made to the site while you interact with it.
 - Filters responses containing ".Net developer" (case-insensitive) and downloads them as a text file.
-- Polls `https://hiring.cafe/api/search-jobs?search=<keyword>` from a background service worker and delivers the results to your email via a webhook.
+- Polls `https://hiring.cafe/api/search-jobs?search=<keyword>` from a background service worker, emails the results over SMTP, and downloads text/JSON files for each run.
 
 ## Configure email delivery
 1. Load the extension in Chrome:
    - Visit `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked** pointing at this folder.
 2. Open the options page (click **Details** on the extension card, then **Extension options**):
    - Set your search keyword (default: `.Net developer`).
-   - Provide the recipient email address.
-   - Provide an email webhook URL that accepts a JSON payload of `{ "to", "subject", "body" }` and forwards an email. Services like SendGrid, Mailgun, Postmark, EmailJS, or a Zapier/Make webhook can be used.
+   - Provide SMTP host, port, username, and app password.
+   - Set the **From** and **To** addresses (defaults are prefilled from the supplied Gmail SMTP details).
    - Choose a send interval (minimum 15 minutes; defaults to 120 minutes / 2 hours).
    - Save the settings and optionally click **Run now** to send a test immediately.
 
-> The extension uses `chrome.storage.sync` to persist configuration and `chrome.alarms` to trigger the scheduled fetches. Host permissions include `<all_urls>` to allow calling your chosen webhook URL.
+> The extension uses `chrome.storage.sync` to persist configuration and `chrome.alarms` to trigger the scheduled fetches. SMTP requests are posted to `https://smtpjs.com/v3/smtpjs.aspx` from the background worker using the credentials you provide. Credentials are saved in Chrome storage in plain text; supply a scoped app password rather than your primary password.
 
 ## Usage
 1. Load the extension in Chrome:
