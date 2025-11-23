@@ -60,6 +60,11 @@ function buildSearchState(keyword, seniorityLevel = DEFAULT_SENIORITY_FILTER) {
   };
 }
 
+function buildSearchUrl(keyword, seniorityLevel = DEFAULT_SENIORITY_FILTER) {
+  const state = buildSearchState(keyword, seniorityLevel);
+  return `${HIRING_CAFE_URL}?searchState=${encodeURIComponent(JSON.stringify(state))}`;
+}
+
 function isRateLimited(status, bodyText = "", errorMessage = "") {
   return status === 429 || /too many requests/i.test(bodyText) || /too many requests/i.test(errorMessage);
 }
@@ -87,75 +92,110 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchJobs(config, attempt = 1, maxAttempts = 3) {
-  // Warm up cookies/session to avoid 403 responses from the API when called from the extension context.
-  if (attempt === 1) {
-    try {
-      await fetch(HIRING_CAFE_URL, {
-        method: "GET",
-        credentials: "include",
-        mode: "cors",
-        referrer: HIRING_CAFE_URL,
-        referrerPolicy: "strict-origin-when-cross-origin",
-      });
-    } catch (warmupError) {
-      console.warn("[Hiring Cafe Watcher] Warmup request failed:", warmupError?.message || warmupError);
-    }
-  }
+function waitForTabComplete(tabId, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      reject(new Error("Timed out waiting for hiring.cafe to load"));
+    }, timeoutMs);
 
-  const response = await fetch(SEARCH_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    credentials: "include",
-    mode: "cors",
-    referrer: HIRING_CAFE_URL,
-    referrerPolicy: "strict-origin-when-cross-origin",
-    body: JSON.stringify({ searchState: buildSearchState(config.keyword, config.seniorityLevel) }),
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId === tabId && changeInfo.status === "complete") {
+        clearTimeout(timeout);
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    };
+
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+async function fetchJobsInRealBrowser(config, attempt = 1, maxAttempts = 3) {
+  const targetUrl = buildSearchUrl(config.keyword, config.seniorityLevel);
+
+  const tabId = await new Promise((resolve, reject) => {
+    chrome.tabs.create({ url: targetUrl, active: false }, (tab) => {
+      const error = chrome.runtime.lastError;
+      if (error || !tab?.id) {
+        reject(new Error(error?.message || "Unable to open hiring.cafe tab"));
+      } else {
+        resolve(tab.id);
+      }
+    });
   });
 
-  const bodyText = await response.text();
-  let parsed;
-
   try {
-    parsed = bodyText ? JSON.parse(bodyText) : {};
-  } catch (parseError) {
-    parsed = {};
-  }
+    await waitForTabComplete(tabId);
 
-  if (!response.ok || parsed?.error) {
-    const rateLimited = isRateLimited(response.status, bodyText, parsed?.error);
-    if (rateLimited && attempt < maxAttempts) {
-      const delay = getRetryDelay(response, attempt);
-      console.warn(
-        `[Hiring Cafe Watcher] Rate limited (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.round(delay / 1000)}s...`
-      );
-      await wait(delay);
-      return fetchJobs(config, attempt + 1, maxAttempts);
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      args: [SEARCH_ENDPOINT, buildSearchState(config.keyword, config.seniorityLevel)],
+      func: async (endpoint, searchState) => {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify({ searchState }),
+          });
+
+          const text = await response.text();
+          return { ok: response.ok, status: response.status, text };
+        } catch (err) {
+          return { ok: false, status: 0, error: err?.message || String(err) };
+        }
+      },
+    });
+
+    const bodyText = result?.text || "";
+    let parsed;
+
+    try {
+      parsed = bodyText ? JSON.parse(bodyText) : {};
+    } catch (parseError) {
+      parsed = {};
     }
 
-    if (response.status === 403 && attempt < maxAttempts) {
-      console.warn(
-        `[Hiring Cafe Watcher] Received 403 forbidden (attempt ${attempt}/${maxAttempts}). Refreshing session and retrying...`
-      );
-      await wait(1000);
-      return fetchJobs(config, attempt + 1, maxAttempts);
+    if (!result?.ok || parsed?.error) {
+      const rateLimited = isRateLimited(result?.status, bodyText, parsed?.error || result?.error);
+      if (rateLimited && attempt < maxAttempts) {
+        const delay = getRetryDelay({ headers: new Headers() }, attempt);
+        console.warn(
+          `[Hiring Cafe Watcher] Rate limited in browser tab (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.round(delay / 1000)}s...`
+        );
+        await wait(delay);
+        return fetchJobsInRealBrowser(config, attempt + 1, maxAttempts);
+      }
+
+      if (result?.status === 403 && attempt < maxAttempts) {
+        console.warn(
+          `[Hiring Cafe Watcher] 403 forbidden from browser tab (attempt ${attempt}/${maxAttempts}). Retrying after reload...`
+        );
+        await wait(1000);
+        return fetchJobsInRealBrowser(config, attempt + 1, maxAttempts);
+      }
+
+      const reason = parsed?.error || bodyText || result?.error || `status ${result?.status}`;
+      throw new Error(`Search request failed in browser tab: ${reason}`);
     }
 
-    const reason = parsed?.error || bodyText || `status ${response.status}`;
-    throw new Error(`Search request failed: ${reason}`);
-  }
+    const jobs = Array.isArray(parsed?.results)
+      ? parsed.results
+      : Array.isArray(parsed?.data)
+        ? parsed.data
+        : Array.isArray(parsed)
+          ? parsed
+          : [];
 
-  const jobs = Array.isArray(parsed?.results)
-    ? parsed.results
-    : Array.isArray(parsed?.data)
-      ? parsed.data
-      : Array.isArray(parsed)
-        ? parsed
-        : [];
-  return jobs;
+    return jobs;
+  } finally {
+    chrome.tabs.remove(tabId, () => {});
+  }
 }
 
 function formatJobs(keyword, jobs) {
@@ -239,7 +279,7 @@ function saveJobsToFiles(keyword, jobs) {
 async function runJobSearch() {
   const config = await getConfig();
   try {
-    const jobs = await fetchJobs(config);
+    const jobs = await fetchJobsInRealBrowser(config);
     await sendEmail(config, jobs);
     saveJobsToFiles(config.keyword, jobs);
     console.info(

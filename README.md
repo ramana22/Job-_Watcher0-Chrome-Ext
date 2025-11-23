@@ -1,14 +1,14 @@
 # Hiring Cafe Watcher
 
-A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watches the Network tab, and saves responses that mention ".Net developer". It also includes a scheduled job runner that queries the public search API, emails the results via SMTP, and downloads both text and JSON snapshots on each run.
+A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watches the Network tab, and saves responses that mention ".Net developer". It also includes a scheduled job runner that drives a real browser tab to execute the search (avoiding anti-bot rules), emails the results via SMTP, and downloads both text and JSON snapshots on each run.
 
 ## Features
 - Opens hiring.cafe in a new tab from the DevTools panel.
 - Captures Network requests made to the site while you interact with it.
 - Filters responses containing ".Net developer" (case-insensitive) and downloads them as a text file.
-- Posts to `https://hiring.cafe/api/search-jobs` with the configured `searchState` (keyword + seniority filters) from a background service worker, emails the results over SMTP, and downloads text/JSON files for each run.
+- Posts to `https://hiring.cafe/api/search-jobs` from an actual hiring.cafe tab opened by the extension (using your configured keyword + seniority filters), emails the results over SMTP, and downloads text/JSON files for each run.
 - Automatically retries the API call with a short backoff if hiring.cafe responds with "Too many requests" (HTTP 429), respecting any `Retry-After` header when present.
-- Primes a session cookie against `https://hiring.cafe/` and retries if a `403 Forbidden` response is returned, since the API can reject requests without a fresh session.
+- Opens a real hiring.cafe tab with the matching searchState before posting to the API so the request is indistinguishable from browser traffic, then retries if a `403 Forbidden` response is returned.
 
 ## Configure email delivery
 1. Load the extension in Chrome:
