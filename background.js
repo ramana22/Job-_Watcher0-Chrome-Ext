@@ -134,13 +134,21 @@ async function fetchJobsInRealBrowser(config, attempt = 1, maxAttempts = 3) {
       args: [SEARCH_ENDPOINT, buildSearchState(config.keyword, config.seniorityLevel)],
       func: async (endpoint, searchState) => {
         try {
+          // Give the page a moment to set any session cookies before posting.
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+
+          // Warm the session with a same-origin GET to mirror browser traffic even when the
+          // tab is backgrounded.
+          await fetch(window.location.href, { credentials: "include", mode: "same-origin" });
+
           const response = await fetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Accept: "application/json",
+              Accept: "application/json, text/plain, */*",
             },
             credentials: "include",
+            mode: "same-origin",
             body: JSON.stringify({ searchState }),
           });
 
@@ -177,6 +185,15 @@ async function fetchJobsInRealBrowser(config, attempt = 1, maxAttempts = 3) {
           `[Hiring Cafe Watcher] 403 forbidden from browser tab (attempt ${attempt}/${maxAttempts}). Retrying after reload...`
         );
         await wait(1000);
+        return fetchJobsInRealBrowser(config, attempt + 1, maxAttempts);
+      }
+
+      if (/an error occurred while searching/i.test(bodyText) && attempt < maxAttempts) {
+        const delay = 2000 * attempt;
+        console.warn(
+          `[Hiring Cafe Watcher] Search failed in browser tab (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.round(delay / 1000)}s...`
+        );
+        await wait(delay);
         return fetchJobsInRealBrowser(config, attempt + 1, maxAttempts);
       }
 
