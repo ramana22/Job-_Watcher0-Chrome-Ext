@@ -60,22 +60,70 @@ function buildSearchState(keyword, seniorityLevel = DEFAULT_SENIORITY_FILTER) {
   };
 }
 
-async function fetchJobs(config) {
+function isRateLimited(status, bodyText = "", errorMessage = "") {
+  return status === 429 || /too many requests/i.test(bodyText) || /too many requests/i.test(errorMessage);
+}
+
+function getRetryDelay(response, attempt) {
+  const retryAfter = response.headers.get("Retry-After");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (!Number.isNaN(seconds)) {
+      return Math.max(seconds * 1000, 1000);
+    }
+    const dateTarget = Date.parse(retryAfter);
+    if (!Number.isNaN(dateTarget)) {
+      const delayMs = dateTarget - Date.now();
+      if (delayMs > 0) return delayMs;
+    }
+  }
+  // Back off with jitter: 60s, 120s, 180s ...
+  const base = 60000 * attempt;
+  const jitter = Math.floor(Math.random() * 5000);
+  return base + jitter;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchJobs(config, attempt = 1, maxAttempts = 3) {
   const response = await fetch(SEARCH_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ searchState: buildSearchState(config.keyword, config.seniorityLevel) }),
   });
-  if (!response.ok) {
-    throw new Error(`Search request failed with status ${response.status}`);
+
+  const bodyText = await response.text();
+  let parsed;
+
+  try {
+    parsed = bodyText ? JSON.parse(bodyText) : {};
+  } catch (parseError) {
+    parsed = {};
   }
-  const data = await response.json();
-  const jobs = Array.isArray(data?.results)
-    ? data.results
-    : Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data)
-        ? data
+
+  if (!response.ok || parsed?.error) {
+    const rateLimited = isRateLimited(response.status, bodyText, parsed?.error);
+    if (rateLimited && attempt < maxAttempts) {
+      const delay = getRetryDelay(response, attempt);
+      console.warn(
+        `[Hiring Cafe Watcher] Rate limited (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.round(delay / 1000)}s...`
+      );
+      await wait(delay);
+      return fetchJobs(config, attempt + 1, maxAttempts);
+    }
+
+    const reason = parsed?.error || bodyText || `status ${response.status}`;
+    throw new Error(`Search request failed: ${reason}`);
+  }
+
+  const jobs = Array.isArray(parsed?.results)
+    ? parsed.results
+    : Array.isArray(parsed?.data)
+      ? parsed.data
+      : Array.isArray(parsed)
+        ? parsed
         : [];
   return jobs;
 }
