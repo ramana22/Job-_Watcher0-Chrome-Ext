@@ -6,19 +6,20 @@ A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watc
 - Opens hiring.cafe in a new tab from the DevTools panel.
 - Captures Network requests made to the site while you interact with it.
 - Filters responses containing ".Net developer" (case-insensitive) and downloads them as a text file.
-- Polls `https://hiring.cafe/api/search-jobs?search=<keyword>` from a background service worker, emails the results over SMTP, and downloads text/JSON files for each run.
+- Posts to `https://hiring.cafe/api/search-jobs` with the configured `searchState` (keyword + seniority filters) from a background service worker, emails the results over SMTP, and downloads text/JSON files for each run.
 
 ## Configure email delivery
 1. Load the extension in Chrome:
    - Visit `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked** pointing at this folder.
 2. Open the options page (click **Details** on the extension card, then **Extension options**):
    - Set your search keyword (default: `.Net developer`).
+   - Adjust the comma-separated seniority filters (defaults: "No Prior Experience Required", "Entry Level", "Mid Level").
    - Provide SMTP host, port, username, and app password.
    - Set the **From** and **To** addresses (defaults are prefilled from the supplied Gmail SMTP details).
    - Choose a send interval (minimum 15 minutes; defaults to 120 minutes / 2 hours).
    - Save the settings and optionally click **Run now** to send a test immediately.
 
-> The extension uses `chrome.storage.sync` to persist configuration and `chrome.alarms` to trigger the scheduled fetches. SMTP requests are posted to `https://smtpjs.com/v3/smtpjs.aspx` from the background worker using the credentials you provide. Credentials are saved in Chrome storage in plain text; supply a scoped app password rather than your primary password.
+> The extension uses `chrome.storage.sync` to persist configuration and `chrome.alarms` to trigger the scheduled fetches. Search results are fetched via POST to `https://hiring.cafe/api/search-jobs` with a `searchState` matching the filters above. SMTP requests are posted to `https://smtpjs.com/v3/smtpjs.aspx` from the background worker using the credentials you provide. Credentials are saved in Chrome storage in plain text; supply a scoped app password rather than your primary password.
 
 ## Usage
 1. Load the extension in Chrome:

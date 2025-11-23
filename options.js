@@ -2,6 +2,12 @@ const form = document.getElementById("config-form");
 const statusEl = document.getElementById("status");
 const runNowButton = document.getElementById("run-now");
 
+const DEFAULT_SENIORITY_FILTER = [
+  "No Prior Experience Required",
+  "Entry Level",
+  "Mid Level",
+];
+
 const DEFAULT_CONFIG = {
   keyword: ".Net developer",
   intervalMinutes: 120,
@@ -11,6 +17,7 @@ const DEFAULT_CONFIG = {
   smtpPass: "jsrkmzzimefqnljt",
   mailFrom: "ramanagajula1999@gmail.com",
   mailTo: "ramanagajula001@gmail.com",
+  seniorityLevel: DEFAULT_SENIORITY_FILTER,
 };
 
 function showStatus(text, isError = false) {
@@ -28,6 +35,10 @@ function ensureConfigShape(config) {
     smtpPass: config.smtpPass || DEFAULT_CONFIG.smtpPass,
     mailFrom: config.mailFrom || config.smtpUser || DEFAULT_CONFIG.mailFrom,
     mailTo: config.mailTo || config.email || DEFAULT_CONFIG.mailTo,
+    seniorityLevel:
+      Array.isArray(config.seniorityLevel) && config.seniorityLevel.length
+        ? config.seniorityLevel
+        : DEFAULT_SENIORITY_FILTER,
   };
 }
 
@@ -42,6 +53,7 @@ function loadConfig() {
     form.mailFrom.value = config.mailFrom;
     form.mailTo.value = config.mailTo;
     form.interval.value = config.intervalMinutes;
+    form.seniority.value = config.seniorityLevel.join(", ");
   });
 }
 
@@ -56,6 +68,10 @@ function saveConfig(event) {
     smtpPass: form.smtpPass.value.trim(),
     mailFrom: form.mailFrom.value.trim(),
     mailTo: form.mailTo.value.trim(),
+    seniorityLevel: form.seniority.value
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
   });
 
   chrome.storage.sync.set({ config }, () => {

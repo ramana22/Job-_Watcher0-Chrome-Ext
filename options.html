@@ -48,11 +48,30 @@
   </head>
   <body>
     <h1>Hiring Cafe Watcher</h1>
-    <p>Configure the keyword to monitor, email delivery settings, and the run interval.</p>
+    <p>
+      Configure the keyword to monitor, email delivery settings, the run interval, and the
+      hiring.cafe search filters used for the POST <code>/api/search-jobs</code> call.
+    </p>
     <form id="config-form">
       <label for="keyword">Search keyword</label>
       <input id="keyword" name="keyword" type="text" placeholder=".Net developer" required />
-      <div class="help">Used for https://hiring.cafe/api/search-jobs?search=&lt;keyword&gt; requests.</div>
+      <div class="help">
+        Injected into the <code>searchState.searchQuery</code> payload when POSTing to
+        https://hiring.cafe/api/search-jobs.
+      </div>
+
+      <label for="seniority">Seniority filters (comma separated)</label>
+      <input
+        id="seniority"
+        name="seniority"
+        type="text"
+        placeholder="No Prior Experience Required, Entry Level, Mid Level"
+        required
+      />
+      <div class="help">
+        Sent as <code>searchState.seniorityLevel</code>. Defaults match the shared URL:
+        https://hiring.cafe/?searchState=%7B%22searchQuery%22%3A%22.Net+developer%22%2C%22seniorityLevel%22%3A%5B%22No+Prior+Experience+Required%22%2C%22Entry+Level%22%2C%22Mid+Level%22%5D%7D
+      </div>
 
       <label for="smtpHost">SMTP host</label>
       <input id="smtpHost" name="smtpHost" type="text" placeholder="smtp.gmail.com" required />

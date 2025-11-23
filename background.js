@@ -3,6 +3,12 @@ const SEARCH_ENDPOINT = "https://hiring.cafe/api/search-jobs";
 const ALARM_NAME = "hiringCafeFetch";
 const MIN_INTERVAL_MINUTES = 15;
 
+const DEFAULT_SENIORITY_FILTER = [
+  "No Prior Experience Required",
+  "Entry Level",
+  "Mid Level",
+];
+
 const DEFAULT_CONFIG = {
   keyword: ".Net developer",
   intervalMinutes: 120,
@@ -12,6 +18,7 @@ const DEFAULT_CONFIG = {
   smtpPass: "jsrkmzzimefqnljt",
   mailFrom: "ramanagajula1999@gmail.com",
   mailTo: "ramanagajula001@gmail.com",
+  seniorityLevel: DEFAULT_SENIORITY_FILTER,
 };
 
 function ensureConfigShape(config) {
@@ -24,6 +31,10 @@ function ensureConfigShape(config) {
     smtpPass: config.smtpPass || DEFAULT_CONFIG.smtpPass,
     mailFrom: config.mailFrom || config.smtpUser || DEFAULT_CONFIG.mailFrom,
     mailTo: config.mailTo || config.email || DEFAULT_CONFIG.mailTo,
+    seniorityLevel:
+      Array.isArray(config.seniorityLevel) && config.seniorityLevel.length
+        ? config.seniorityLevel
+        : DEFAULT_SENIORITY_FILTER,
   };
 }
 
@@ -40,14 +51,32 @@ function getConfig() {
   });
 }
 
-async function fetchJobs(keyword) {
-  const params = new URLSearchParams({ search: keyword });
-  const response = await fetch(`${SEARCH_ENDPOINT}?${params.toString()}`);
+function buildSearchState(keyword, seniorityLevel = DEFAULT_SENIORITY_FILTER) {
+  return {
+    searchQuery: keyword,
+    seniorityLevel: Array.isArray(seniorityLevel) && seniorityLevel.length
+      ? seniorityLevel
+      : DEFAULT_SENIORITY_FILTER,
+  };
+}
+
+async function fetchJobs(config) {
+  const response = await fetch(SEARCH_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ searchState: buildSearchState(config.keyword, config.seniorityLevel) }),
+  });
   if (!response.ok) {
     throw new Error(`Search request failed with status ${response.status}`);
   }
   const data = await response.json();
-  const jobs = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+  const jobs = Array.isArray(data?.results)
+    ? data.results
+    : Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data)
+        ? data
+        : [];
   return jobs;
 }
 
@@ -57,11 +86,13 @@ function formatJobs(keyword, jobs) {
   }
 
   const lines = jobs.map((job, index) => {
-    const jobId = job.job_id || job.id || "";
-    const title = job.job_title || job.title || "Untitled role";
-    const company = job.company_name || job.company || "Unknown company";
-    const url = job.job_url || job.url || "";
-    const location = job.location || job.job_location || "";
+    const info = job.job_information || job;
+    const jobId = job.job_id || job.id || job.objectID || job.requisition_id || "";
+    const title = info.job_title || info.title || "Untitled role";
+    const company = info.company_name || info.company || job.company_name || job.company || "Unknown company";
+    const url = job.apply_url || info.job_url || job.job_url || job.url || "";
+    const location = info.formatted_workplace_location || info.location || job.location || job.job_location || "";
+    const description = info.description || info.job_description || "";
 
     return [
       `#${index + 1} ${title}`,
@@ -69,7 +100,7 @@ function formatJobs(keyword, jobs) {
       location ? `Location: ${location}` : null,
       jobId ? `Job ID: ${jobId}` : null,
       url ? `Job URL: ${url}` : null,
-      job.description ? `Description: ${job.description}` : null,
+      description ? `Description: ${description.replace(/\s+/g, " ").trim()}` : null,
     ]
       .filter(Boolean)
       .join("\n");
@@ -130,7 +161,7 @@ function saveJobsToFiles(keyword, jobs) {
 async function runJobSearch() {
   const config = await getConfig();
   try {
-    const jobs = await fetchJobs(config.keyword);
+    const jobs = await fetchJobs(config);
     await sendEmail(config, jobs);
     saveJobsToFiles(config.keyword, jobs);
     console.info(
