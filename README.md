@@ -8,6 +8,7 @@ A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watc
 - Filters responses containing ".Net developer" (case-insensitive) and downloads them as a text file.
 - Posts to `https://hiring.cafe/api/search-jobs` with the configured `searchState` (keyword + seniority filters) from a background service worker, emails the results over SMTP, and downloads text/JSON files for each run.
 - Automatically retries the API call with a short backoff if hiring.cafe responds with "Too many requests" (HTTP 429), respecting any `Retry-After` header when present.
+- Primes a session cookie against `https://hiring.cafe/` and retries if a `403 Forbidden` response is returned, since the API can reject requests without a fresh session.
 
 ## Configure email delivery
 1. Load the extension in Chrome:
@@ -20,6 +21,7 @@ A Chrome DevTools extension that opens [hiring.cafe](https://hiring.cafe/), watc
    - Choose a send interval (minimum 15 minutes; defaults to 120 minutes / 2 hours).
    - Save the settings and optionally click **Run now** to send a test immediately.
    - If hiring.cafe returns `Too many requests`, the background job waits per `Retry-After` (or a 1–3 minute backoff) and retries up to three times before surfacing an error in the console log.
+   - If hiring.cafe returns `403 Forbidden`, the background job refreshes the session cookie and retries before surfacing the error.
 
 > The extension uses `chrome.storage.sync` to persist configuration and `chrome.alarms` to trigger the scheduled fetches. Search results are fetched via POST to `https://hiring.cafe/api/search-jobs` with a `searchState` matching the filters above. SMTP requests are posted to `https://smtpjs.com/v3/smtpjs.aspx` from the background worker using the credentials you provide. Credentials are saved in Chrome storage in plain text; supply a scoped app password rather than your primary password.
 

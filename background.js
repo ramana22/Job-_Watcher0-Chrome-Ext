@@ -88,9 +88,31 @@ function wait(ms) {
 }
 
 async function fetchJobs(config, attempt = 1, maxAttempts = 3) {
+  // Warm up cookies/session to avoid 403 responses from the API when called from the extension context.
+  if (attempt === 1) {
+    try {
+      await fetch(HIRING_CAFE_URL, {
+        method: "GET",
+        credentials: "include",
+        mode: "cors",
+        referrer: HIRING_CAFE_URL,
+        referrerPolicy: "strict-origin-when-cross-origin",
+      });
+    } catch (warmupError) {
+      console.warn("[Hiring Cafe Watcher] Warmup request failed:", warmupError?.message || warmupError);
+    }
+  }
+
   const response = await fetch(SEARCH_ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    credentials: "include",
+    mode: "cors",
+    referrer: HIRING_CAFE_URL,
+    referrerPolicy: "strict-origin-when-cross-origin",
     body: JSON.stringify({ searchState: buildSearchState(config.keyword, config.seniorityLevel) }),
   });
 
@@ -111,6 +133,14 @@ async function fetchJobs(config, attempt = 1, maxAttempts = 3) {
         `[Hiring Cafe Watcher] Rate limited (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.round(delay / 1000)}s...`
       );
       await wait(delay);
+      return fetchJobs(config, attempt + 1, maxAttempts);
+    }
+
+    if (response.status === 403 && attempt < maxAttempts) {
+      console.warn(
+        `[Hiring Cafe Watcher] Received 403 forbidden (attempt ${attempt}/${maxAttempts}). Refreshing session and retrying...`
+      );
+      await wait(1000);
       return fetchJobs(config, attempt + 1, maxAttempts);
     }
 
